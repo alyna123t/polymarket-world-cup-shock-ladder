@@ -427,13 +427,51 @@ def _safe_spread(ctx: dict, market) -> Optional[float]:
     return spread
 
 
+def get_positions(client) -> List[dict]:
+    try:
+        from dataclasses import asdict
+
+        positions = client.get_positions(venue="polymarket")
+        return [asdict(p) for p in positions]
+    except Exception as e:
+        print(f"Error fetching positions: {e}")
+        return []
+
+
+def check_context_safeguards(context: dict) -> Tuple[bool, List[str]]:
+    """Check context for deal-breakers. Returns (should_trade, reasons)."""
+    if not context:
+        return True, []
+
+    reasons: List[str] = []
+    warnings = context.get("warnings", [])
+    discipline = context.get("discipline", {})
+
+    for warning in warnings:
+        if "MARKET RESOLVED" in str(warning).upper():
+            return False, ["Market already resolved"]
+
+    warning_level = discipline.get("warning_level", "none")
+    if warning_level == "severe":
+        return False, [f"Severe flip-flop warning: {discipline.get('flip_flop_warning', '')}"]
+    if warning_level == "mild":
+        reasons.append("Mild flip-flop warning (proceed with caution)")
+
+    return True, reasons
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 
-def run(live: bool, quiet: bool = False) -> int:
+def run(live: bool, quiet: bool = False, positions_only: bool = False, use_safeguards: bool = True) -> int:
     client = get_client(live=live)
+
+    if positions_only:
+        positions = get_positions(client)
+        print(json.dumps(positions, indent=2))
+        return 0
 
     daily = _load_daily_spend()
     cooldown = _load_json(COOLDOWN_STATE, {})
@@ -487,10 +525,16 @@ def run(live: bool, quiet: bool = False) -> int:
 
         # Context + risk gates
         ctx = client.get_market_context(market_id, venue="polymarket") or {}
+        if use_safeguards:
+            should_trade, reasons = check_context_safeguards(ctx)
+            if not should_trade:
+                continue
+            if reasons and not quiet:
+                print(f"safeguard: {question[:64]}... -> {'; '.join(reasons)}")
+
         spread = _safe_spread(ctx, m)
         if spread is not None and spread > float(_config["max_spread"]):
             continue
-
         slippage = _est_slippage_pct(ctx)
         if slippage > float(_config["max_slippage_pct"]):
             continue
@@ -605,6 +649,8 @@ def run(live: bool, quiet: bool = False) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description="World Cup shock-ladder trader")
     ap.add_argument("--live", action="store_true", help="Execute real orders (default is dry-run)")
+    ap.add_argument("--positions", action="store_true", help="Show current positions and exit")
+    ap.add_argument("--no-safeguards", action="store_true", help="Disable context safeguards")
     ap.add_argument("--quiet", action="store_true", help="Less verbose output")
     ap.add_argument("--config", action="store_true", help="Print resolved config and exit")
     ap.add_argument("--set", action="append", default=[], help="Update config key=value")
@@ -635,7 +681,12 @@ def main() -> int:
         print(json.dumps(_config, indent=2))
         return 0
 
-    return run(live=args.live, quiet=args.quiet)
+    return run(
+        live=args.live,
+        quiet=args.quiet,
+        positions_only=args.positions,
+        use_safeguards=not args.no_safeguards,
+    )
 
 
 if __name__ == "__main__":

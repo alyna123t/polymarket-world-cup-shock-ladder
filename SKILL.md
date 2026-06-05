@@ -78,3 +78,33 @@ python world_cup_shock_ladder.py --set daily_budget_usd=100
 - Current implementation uses spread/slippage as an orderbook-depth proxy because full L2 concentration is not always exposed in the SDK context payload.
 - Exit is currently surfaced as a target price in reasoning/telemetry; explicit automated exit legs can be added in v0.2.
 - Start in `sim` or dry-run and collect your own bucket-level hit-rate stats before scaling.
+
+## Deterministic spec (Skill Builder style)
+
+### Signal
+- Fast adverse YES-price shock over `shock_window_seconds`
+- Must satisfy both percentage and absolute drop thresholds
+
+### Entry logic
+- Classify shock bucket (favoritism, depth proxy, match-time, goal state)
+- Compute ladder depths (P50/P75/P90/P95)
+- Enter only deepest currently-eligible rung with risk filters passing
+
+### Exit logic
+- No automated exit leg in v0.1
+- Bounce target is included in reasoning/telemetry for discretionary or future automation
+
+### Market selection
+- Active Polymarket-imported World Cup/FIFA/soccer markets
+- Text/tag filter plus spread/slippage/cooldown gates
+
+### Position sizing
+- Fixed per-shock ladder allocation from `max_position_usd` (10/20/30/40 split)
+- Enforced by per-run and daily budget caps
+
+### Risk controls
+- `max_spread`, `max_slippage_pct`
+- `cooldown_seconds`
+- `max_trades_per_run`
+- `daily_budget_usd`
+- optional context safeguards (disable with `--no-safeguards`)
