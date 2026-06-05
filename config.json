@@ -1,0 +1,19 @@
+{
+  "market_query": "World Cup",
+  "import_source": "polymarket",
+  "scan_limit": 250,
+  "shock_window_seconds": 120,
+  "shock_drop_pct": 0.15,
+  "shock_drop_abs": 0.08,
+  "cooldown_seconds": 180,
+  "max_spread": 0.03,
+  "max_slippage_pct": 0.04,
+  "max_position_usd": 20.0,
+  "max_trades_per_run": 4,
+  "daily_budget_usd": 60.0,
+  "exit_bounce_cents": 4.0,
+  "favor_heavy_cutoff": 0.85,
+  "favor_moderate_cutoff": 0.75,
+  "favor_slight_cutoff": 0.60,
+  "favor_balanced_cutoff": 0.45
+}
